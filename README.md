@@ -1,7 +1,3 @@
-Sure! Here’s a basic `README.md` file for the `pyvietstock` project, indicating that it is currently under construction:
-
----
-
 # pyvietstock
 
 ## Overview
@@ -36,7 +32,3 @@ For any questions or feedback, please open an issue or contact us directly at [y
 
 ## Acknowledgments
 - Thanks to the contributors and the open-source community for their support.
-
----
-
-Feel free to update the sections with more details as the project progresses.
