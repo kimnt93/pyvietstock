@@ -30,5 +30,5 @@ def extract_timestamp(trading_date_str, ns):
 def to_time_s(d, ns=1000) -> Optional[str]:
     try:
         return datetime.fromtimestamp(extract_timestamp(d, ns)).__str__()
-    except ValueError:
+    except (ValueError, TypeError):
         return None
