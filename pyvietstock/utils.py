@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 from functools import lru_cache
-from typing import Union
+from typing import Union, Optional
 import re
 
 
@@ -27,19 +27,8 @@ def extract_timestamp(trading_date_str, ns):
     return None
 
 
-def to_time_s(d, ns=1000) -> str:
+def to_time_s(d, ns=1000) -> Optional[str]:
     try:
         return datetime.fromtimestamp(extract_timestamp(d, ns)).__str__()
     except ValueError:
         return None
-
-
-@lru_cache(maxsize=1)
-def get_cookies():
-    # read cookies.json
-    cookies = json.loads(open('cookies.json').read())
-    return {cookie['name']: cookie['value'] for cookie in cookies}
-
-
-if __name__ == "__main__":
-    print(get_cookies())

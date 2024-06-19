@@ -1,17 +1,18 @@
 from dataclasses import dataclass
 
 
-
+@dataclass
 class ReportTermType:
     BY_YEAR = 1
     BY_QUARTER = 2
 
 
+@dataclass
 class ReportType:
     BCTQ = "BCTQ"
 
 
-@dataclass(frozen=True)
+@dataclass
 class HistoricalResolution:
     ONE_MINUTE: str = "1"
     THREE_MINUTES: str = "3"
@@ -26,7 +27,7 @@ class HistoricalResolution:
     DEFAULT: str = ONE_DAY
 
 
-@dataclass(frozen=True)
+@dataclass
 class Period:
     DAY = "D"
     WEEK = "W"
@@ -36,7 +37,7 @@ class Period:
     DEFAULT = DAY
 
 
-@dataclass(frozen=True)
+@dataclass
 class DocumentType:
     ALL = None
     FINANCIAL_STATEMENT = 1
@@ -49,3 +50,12 @@ class DocumentType:
     PROSPECTUS = 3
     LIQUIDITY_RATIO_REPORT = 10
     REGULATIONS = 6
+
+
+@dataclass
+class TransferTypeID:
+    ALL = 0
+    INTERNAL_SHAREHOLDER = 2
+    RELATED_PERSON = 3
+    LARGE_SHAREHOLDER = 1
+    TREASURY_STOCK = 5
