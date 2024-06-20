@@ -59,3 +59,16 @@ class TransferTypeID:
     RELATED_PERSON = 3
     LARGE_SHAREHOLDER = 1
     TREASURY_STOCK = 5
+
+
+@dataclass
+class EventType:
+    ALL = [1, 2, 5]
+
+
+@dataclass
+class IncomeStatementPeriod:
+    QUARTER = "QUY"
+    YEAR = "NAM"
+    DEFAULT = QUARTER
+

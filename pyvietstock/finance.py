@@ -1,15 +1,19 @@
+import re
 import time
 from datetime import datetime, timedelta
+from functools import lru_cache
 from typing import AnyStr, Union, List
 import logging
 import requests
 
 from pyvietstock.account import login
 from pyvietstock.config import API_BASE_URL, FINANCE_BASE_URL, DEFAULT_API_HEADERS
-from pyvietstock.params import HistoricalResolution, DocumentType, Period, TransferTypeID
+from pyvietstock.params import HistoricalResolution, DocumentType, Period, TransferTypeID, EventType, \
+    IncomeStatementPeriod
 from pyvietstock.schema import (
     EventTransferData, HistoricalData, TradingInfo, MarketPrice, StockDealDetail,
-    StatisticsData, CompanyRelation, Document, HeaderNews, BondRelated
+    StatisticsData, CompanyRelation, Document, HeaderNews, BondRelated, NewsArticle, ChannelNewsArticle, CompanyEvent,
+    EventSameIndustry, IncomeStatementData
 )
 from pyvietstock.utils import convert_to_epoch, to_time_s
 
@@ -497,7 +501,7 @@ class VietStockFinance:
             return None
 
     def event_transfer_data(
-            self, stock_code: AnyStr,
+            self, symbol: AnyStr,
             f_date: AnyStr = None, t_date: AnyStr = None,
             page: int = 1, page_size: int = 20,
             order_by: str = "EventID", order_dir: str = "DESC",
@@ -514,7 +518,7 @@ class VietStockFinance:
         url = f"{self.finance_base_url}/data/eventstransferdata"
         payload = {
             "transferTypeID": transfer_type_id,
-            "stockCode": stock_code,
+            "stockCode": symbol,
             "fDate": f_date,
             "tDate": t_date,
             "page": page,
@@ -584,7 +588,7 @@ class VietStockFinance:
 
     def bond_related(
             self,
-            code: str,
+            symbol: str,
             order_by: str = 'ReleaseDate',
             order_dir: str = 'DESC',
             page: int = 1,
@@ -592,7 +596,7 @@ class VietStockFinance:
     ) -> Union[List[BondRelated], None]:
         """
         Fetches bond-related data based on provided parameters.
-        :param code: Stock code.
+        :param symbol: Stock code.
         :param order_by: Field to order by (default: 'ReleaseDate').
         :param order_dir: Ordering direction ('ASC' or 'DESC', default: 'DESC').
         :param page: Page number (default: 1).
@@ -602,7 +606,7 @@ class VietStockFinance:
         url = f'{self.finance_base_url}/Data/GetBondRelated'
         payload = {
             '__RequestVerificationToken': self._token,
-            'code': code,
+            'code': symbol,
             'orderBy': order_by,
             'orderDir': order_dir,
             'page': page,
@@ -639,3 +643,317 @@ class VietStockFinance:
         else:
             response.raise_for_status()
             return None
+
+    def news_by_code(
+            self,
+            symbol: str,
+            page: int = 1,
+            page_size: int = 5
+    ) -> Union[List[NewsArticle], None]:
+        """
+        Fetches news articles based on provided parameters.
+        :param symbol:
+        :param page:
+        :param page_size:
+        :return:
+        """
+        url = f"{self.finance_base_url}/data/getnewsbycode"
+        params = {
+            'code': symbol,
+            'types[]': [-1, 3, 4, 5, 6, 7],
+            'page': page,
+            'pageSize': page_size,
+            '__RequestVerificationToken': self._token
+        }
+
+        response = requests.post(url, data=params, headers=self._headers)
+        if response.status_code == 200:
+            articles = []
+            response_data = response.json()
+            for group in response_data:
+                for item in group:
+                    article = NewsArticle(
+                        symbol=item.get('StockCode'),
+                        channel_id=item.get('ChannelID'),
+                        head=item.get('Head'),
+                        article_id=item.get('ArticleID'),
+                        title=item.get('Title'),
+                        publish_time=to_time_s(item.get('PublishTime')),
+                        content=item.get('Content'),
+                        url=item.get('URL'),
+                        total_row=item.get('TotalRow')
+                    )
+                    articles.append(article)
+            return articles
+        else:
+            response.raise_for_status()
+            return None
+
+    def news_by_channel(
+            self,
+            symbol: str,
+            news_type: int = 1,
+            page: int = 1,
+            page_size: int = 10
+    ) -> Union[List[ChannelNewsArticle], None]:
+        """
+        Fetches news articles based on provided parameters.
+        :param symbol:
+        :param news_type:
+        :param page:
+        :param page_size:
+        :return:
+        """
+        url = f"{self.finance_base_url}/data/getnewsbychannel3"
+        params = {
+            'code': symbol,
+            'type': news_type,
+            'page': page,
+            'pageSize': page_size,
+            '__RequestVerificationToken': self._token
+        }
+
+        response = requests.post(url, data=params, headers=self._headers)
+        if response.status_code == 200:
+            articles = []
+            response_data = response.json()
+            for item in response_data:
+                article = ChannelNewsArticle(
+                    article_id=item.get('ArticleID'),
+                    title=item.get('Title'),
+                    head=item.get('Head'),
+                    head_image_url=item.get('HeadImageUrl'),
+                    publish_time=to_time_s(item.get('PublishTime')),
+                    channel_id=item.get('ChannelID'),
+                    url=item.get('URL'),
+                    row=item.get('Row'),
+                    total_row=item.get('TotalRow')
+                )
+                articles.append(article)
+            return articles
+        else:
+            response.raise_for_status()
+            return None
+
+    def events_by_type(
+        self,
+        symbol: str,
+        from_date: str = '',
+        to_date: str = '',
+        page: int = 1,
+        page_size: int = 5,
+        order_by: str = 'Date1',
+        order_dir: str = 'DESC'
+    ) -> Union[List[CompanyEvent], None]:
+        """
+        Fetches events based on provided parameters.
+        :param symbol:
+        :param from_date:
+        :param to_date:
+        :param page:
+        :param page_size:
+        :param order_by:
+        :param order_dir:
+        :return:
+        """
+        url = f"{self.finance_base_url}/data/eventstypedata"
+
+        events = []  # return this
+        for event_type_id in EventType.ALL:
+            params = {
+                'eventTypeID': event_type_id,
+                'channelID': 0,
+                'code': symbol,
+                'catID': -1,
+                'fDate': from_date,
+                'tDate': to_date,
+                'page': page,
+                'pageSize': page_size,
+                'orderBy': order_by,
+                'orderDir': order_dir,
+                '__RequestVerificationToken': self._token
+            }
+
+            response = requests.post(url, data=params, headers=self._headers)
+            if response.status_code == 200:
+                response_data = response.json()
+                response_data = response_data[0]
+                for item in response_data:
+                    events.append(CompanyEvent(
+                        symbol=item.get('Code'),
+                        event_id=item.get('EventID'),
+                        event_type_id=item.get('EventTypeID'),
+                        channel_id=item.get('ChannelID'),
+                        company_name=item.get('CompanyName'),
+                        cat_id=item.get('CatID'),
+                        gdkhq_date=to_time_s(item.get('GDKHQDate')),
+                        ndkcc_date=to_time_s(item.get('NDKCCDate')),
+                        event_time=item.get('Time'),
+                        note=item.get('Note'),
+                        name=item.get('Name'),
+                        exchange=item.get('Exchange'),
+                        title=item.get('Title'),
+                        content=item.get('Content'),
+                        file_url=item.get('FileUrl'),
+                        date_order=to_time_s(item.get('DateOrder')),
+                        row=item.get('Row')
+                    ))
+            else:
+                response.raise_for_status()
+
+        return events if len(events) > 0 else None
+
+    def events_same_industry(
+        self,
+        symbol: str,
+        from_date: str = '',
+        to_date: str = '',
+        page: int = 1,
+        page_size: int = 5,
+        order_by: str = 'Date1',
+        order_dir: str = 'DESC'
+    ) -> Union[List[EventSameIndustry], None]:
+        """
+        Fetches events based on provided parameters for companies in the same industry.
+        :param symbol: Stock symbol of the company.
+        :param from_date: Starting date for event search.
+        :param to_date: Ending date for event search.
+        :param page: Page number for pagination.
+        :param page_size: Number of records per page.
+        :param order_by: Column to order the results by.
+        :param order_dir: Direction of the order (ASC/DESC).
+        :return: List of EventSameIndustry or None if no events are found.
+        """
+        url = f"{self.finance_base_url}/data/eventstypedatasameindustry"
+        events = []  # return this
+        for event_type_id in EventType.ALL:
+            params = {
+                'eventTypeID': event_type_id,
+                'channelID': 0,
+                'code': symbol,
+                'catID': -1,
+                'fDate': from_date,
+                'tDate': to_date,
+                'page': page,
+                'pageSize': page_size,
+                'orderBy': order_by,
+                'orderDir': order_dir,
+                '__RequestVerificationToken': self._token
+            }
+
+            response = requests.post(url, data=params, headers=self._headers)
+            if response.status_code == 200:
+                response_data = response.json()
+                response_data = response_data[0]
+
+                events = []
+                for item in response_data:
+                    events.append(EventSameIndustry(
+                        symbol=item.get('Code'),
+                        event_id=item.get('EventID'),
+                        event_type_id=item.get('EventTypeID'),
+                        channel_id=item.get('ChannelID'),
+                        company_name=item.get('CompanyName'),
+                        cat_id=item.get('CatID'),
+                        gdkhq_date=to_time_s(item.get('GDKHQDate')),
+                        ndkcc_date=to_time_s(item.get('NDKCCDate')),
+                        event_time=to_time_s(item.get('Time')),
+                        note=item.get('Note'),
+                        name=item.get('Name'),
+                        exchange=item.get('Exchange'),
+                        title=item.get('Title'),
+                        content=item.get('Content'),
+                        file_url=item.get('FileUrl'),
+                        date_order=to_time_s(item.get('DateOrder')),
+                        place=item.get('Place'),
+                        time_action=item.get('TimeAction'),
+                        from_date=to_time_s(item.get('FromDate')),
+                        row=item.get('Row')
+                    ))
+
+            else:
+                response.raise_for_status()
+
+        return events if len(events) > 0 else None
+
+    @lru_cache(maxsize=2048)
+    def _get_income_norm(self, symbol):
+        url = f"{self.finance_base_url}/data/GetListReportNorm_KQKD_ByStockCode"
+        payload = {
+            "stockCode": symbol,
+            "__RequestVerificationToken": self._token
+        }
+        response = requests.post(url, data=payload, headers=self._headers)
+        if response.status_code == 200:
+            pattern = r'\d+\.'
+            data = response.json()['data']
+            return {
+                row['ReportNormId']: re.sub(pattern, '', row['ReportNormName']).strip() for row in data
+            }
+        else:
+            response.raise_for_status()
+            return dict()
+
+    def income_statement(self, symbol: str, period: Union[IncomeStatementPeriod, AnyStr] = IncomeStatementPeriod.DEFAULT) -> Union[List[IncomeStatementData], None]:
+        """
+        Get income statement data for a stock code.
+        :param symbol: Stock code to fetch report data for.
+        :param period: Period type (QUY: Quarterly, NAM: Yearly). Default is quarterly.
+        :return: List of dictionaries containing report data.
+        """
+
+        url = f'{self.finance_base_url}/data/KQKD_GetListReportData'
+        payload = {
+            'StockCode': symbol,
+            'UnitedId': -1,
+            'AuditedStatusId': -1,
+            'Unit': 1000000000,
+            'IsNamDuongLich': False,
+            'PeriodType': period,
+            'SortTimeType': 'Time_ASC',
+            '__RequestVerificationToken': self._token,
+        }
+
+        response = requests.post(url, data=payload, headers=self._headers)
+        datas = list()
+        if response.status_code == 200:
+            data = response.json().get('data', [])
+
+            datas = [
+                IncomeStatementData(
+                    row_number=item['RowNumber'],
+                    report_data_id=item['ReportDataID'],
+                    year_period=item['YearPeriod'],
+                    report_term_id=item['ReportTermID'],
+                    audit_opinion=item['YKienKiemToan'],
+                    audit_firm=item['CtyKiemToan'],
+                    is_united=item['IsUnited'],
+                    united_name=item['UnitedName'],
+                    audit_status_id=item['AuditStatusID'],
+                    audit_status_name=item['AuditStatusName'],
+                    period_begin=item['PeriodBegin'],
+                    period_end=item['PeriodEnd'],
+                    base_period_begin=item['BasePeriodBegin'],
+                    base_period_end=item['BasePeriodEnd'],
+                    is_show_data_permission=item['IsShowData_Permission']
+                ) for item in data
+            ]
+        else:
+            response.raise_for_status()  # Raise an exception for non-200 status codes
+
+        return None if len(datas) == 0 else datas
+
+    def balance_sheet(self, symbol: str):
+        raise NotImplementedError()
+
+    def cash_flow_statement(self, symbol: str):
+        raise NotImplementedError()
+
+    def financial_summary(self, symbol: str):
+        raise NotImplementedError()
+
+    def financial_ratios(self, symbol: str):
+        raise NotImplementedError()
+
+    def financial_plan(self, symbol: str):
+        raise NotImplementedError()

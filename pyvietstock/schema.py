@@ -215,3 +215,76 @@ class BondRelated:
     interest_rate_type: str
     interest_period: str
     total_record: int
+
+
+@dataclass
+class NewsArticle:
+    symbol: str
+    channel_id: int
+    head: str
+    article_id: int
+    title: str
+    publish_time: str
+    content: str
+    url: str
+    total_row: int
+
+
+@dataclass
+class ChannelNewsArticle:
+    article_id: int
+    title: str
+    head: str
+    head_image_url: str
+    publish_time: str
+    channel_id: int
+    url: str
+    row: int
+    total_row: int
+
+
+@dataclass
+class CompanyEvent:
+    symbol: str
+    event_id: int
+    event_type_id: int
+    channel_id: int
+    company_name: str
+    cat_id: int
+    gdkhq_date: str
+    ndkcc_date: str
+    event_time: str
+    note: str
+    name: str
+    exchange: str
+    title: str
+    content: str
+    file_url: str
+    date_order: str
+    row: int
+
+
+@dataclass
+class EventSameIndustry(CompanyEvent):
+    place: str
+    time_action: str
+    from_date: str
+
+
+@dataclass
+class IncomeStatementData:
+    row_number: int
+    report_data_id: int
+    year_period: int
+    report_term_id: int
+    audit_opinion: str  # ý kiến kiểm toán -> Audit opinion
+    audit_firm: str  # công ty kiểm toán -> Audit firm
+    is_united: int
+    united_name: str
+    audit_status_id: int
+    audit_status_name: str
+    period_begin: int
+    period_end: int
+    base_period_begin: int
+    base_period_end: int
+    is_show_data_permission: bool
