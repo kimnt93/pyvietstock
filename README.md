@@ -28,6 +28,18 @@ The function prototypes can be found under `pyvietstock/finance.py`. The respons
 
 ### News
 - [x] **header_news**: Fetches headline news from Vietstock, providing titles, URLs, and publication timestamps.
+- [x] **news_by_code**: Fetches news related to a specific stock code, providing titles, URLs, and publication timestamps.
+- [x] **news_by_channel**: Fetches news related to a specific channel, providing titles, URLs, and publication timestamps.
+- [x] **events_by_type**: Retrieves events of a specific type for a stock symbol.
+- [x] **events_same_industry**: Retrieves events related to the same industry as a stock symbol.
+
+## Financial Statements
+- [] **financial_summary**: Fetches a summary of financial data for a stock symbol, including revenue, profit, and other key metrics.
+- [] **income_statement**: Fetches income statement data for a stock symbol, audit, including revenue, expenses, and net income.
+- [] **balance_sheet**: Fetches balance sheet data for a stock symbol, including assets, liabilities, and equity.
+- [] **cash_flow_statement**: Fetches cash flow statement data for a stock symbol, including operating, investing, and financing activities.
+- [] **financial_ratios**: Fetches financial ratios for a stock symbol, including profitability, liquidity, and solvency ratios.
+
 
 ## Installation
 The library is not yet available for installation as it is still under active development. Once completed, it will be available via PyPI. You can install the library locally by running the following command:
@@ -38,6 +50,25 @@ pip install .
 
 ## Usage
 
+Use must login to Vietstock Finance to access full functionalities of the library. If you don't have an account, you can create one at https://finance.vietstock.vn/. A free account is restricted to access trading data only. Or you can set login environment variables in your system.
+
+```bash
+VIETSTOCK_LOGIN_EMAIL=
+VIETSTOCK_LOGIN_PASSWORD=
+```
+
+```python
+from pyvietstock.finance import VietStockFinance
+import os
+
+
+vf = VietStockFinance() \
+      .set_user_name(os.environ['VIETSTOCK_LOGIN_EMAIL']) \
+      .set_password(os.environ['VIETSTOCK_LOGIN_PASSWORD']) \
+      .login()
+```
+
+Example usage:
 ```python
 from pyvietstock.finance import VietStockFinance
 

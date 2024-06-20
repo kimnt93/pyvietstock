@@ -1,16 +1,19 @@
+import re
 import time
 from datetime import datetime, timedelta
+from functools import lru_cache
 from typing import AnyStr, Union, List
 import logging
 import requests
 
 from pyvietstock.account import login
 from pyvietstock.config import API_BASE_URL, FINANCE_BASE_URL, DEFAULT_API_HEADERS
-from pyvietstock.params import HistoricalResolution, DocumentType, Period, TransferTypeID, EventType
+from pyvietstock.params import HistoricalResolution, DocumentType, Period, TransferTypeID, EventType, \
+    IncomeStatementPeriod
 from pyvietstock.schema import (
     EventTransferData, HistoricalData, TradingInfo, MarketPrice, StockDealDetail,
     StatisticsData, CompanyRelation, Document, HeaderNews, BondRelated, NewsArticle, ChannelNewsArticle, CompanyEvent,
-    EventSameIndustry
+    EventSameIndustry, IncomeStatementData
 )
 from pyvietstock.utils import convert_to_epoch, to_time_s
 
@@ -872,3 +875,85 @@ class VietStockFinance:
                 response.raise_for_status()
 
         return events if len(events) > 0 else None
+
+    @lru_cache(maxsize=2048)
+    def _get_income_norm(self, symbol):
+        url = f"{self.finance_base_url}/data/GetListReportNorm_KQKD_ByStockCode"
+        payload = {
+            "stockCode": symbol,
+            "__RequestVerificationToken": self._token
+        }
+        response = requests.post(url, data=payload, headers=self._headers)
+        if response.status_code == 200:
+            pattern = r'\d+\.'
+            data = response.json()['data']
+            return {
+                row['ReportNormId']: re.sub(pattern, '', row['ReportNormName']).strip() for row in data
+            }
+        else:
+            response.raise_for_status()
+            return dict()
+
+    def income_statement(self, symbol: str, period: Union[IncomeStatementPeriod, AnyStr] = IncomeStatementPeriod.DEFAULT) -> Union[List[IncomeStatementData], None]:
+        """
+        Get income statement data for a stock code.
+        :param symbol: Stock code to fetch report data for.
+        :param period: Period type (QUY: Quarterly, NAM: Yearly). Default is quarterly.
+        :return: List of dictionaries containing report data.
+        """
+
+        url = f'{self.finance_base_url}/data/KQKD_GetListReportData'
+        payload = {
+            'StockCode': symbol,
+            'UnitedId': -1,
+            'AuditedStatusId': -1,
+            'Unit': 1000000000,
+            'IsNamDuongLich': False,
+            'PeriodType': period,
+            'SortTimeType': 'Time_ASC',
+            '__RequestVerificationToken': self._token,
+        }
+
+        response = requests.post(url, data=payload, headers=self._headers)
+        datas = list()
+        if response.status_code == 200:
+            data = response.json().get('data', [])
+
+            datas = [
+                IncomeStatementData(
+                    row_number=item['RowNumber'],
+                    report_data_id=item['ReportDataID'],
+                    year_period=item['YearPeriod'],
+                    report_term_id=item['ReportTermID'],
+                    audit_opinion=item['YKienKiemToan'],
+                    audit_firm=item['CtyKiemToan'],
+                    is_united=item['IsUnited'],
+                    united_name=item['UnitedName'],
+                    audit_status_id=item['AuditStatusID'],
+                    audit_status_name=item['AuditStatusName'],
+                    period_begin=item['PeriodBegin'],
+                    period_end=item['PeriodEnd'],
+                    base_period_begin=item['BasePeriodBegin'],
+                    base_period_end=item['BasePeriodEnd'],
+                    is_show_data_permission=item['IsShowData_Permission']
+                ) for item in data
+            ]
+        else:
+            response.raise_for_status()  # Raise an exception for non-200 status codes
+
+        return None if len(datas) == 0 else datas
+
+    def balance_sheet(self, symbol: str):
+        raise NotImplementedError()
+
+    def cash_flow_statement(self, symbol: str):
+        raise NotImplementedError()
+
+    def financial_summary(self, symbol: str):
+        raise NotImplementedError()
+
+    def financial_ratios(self, symbol: str):
+        raise NotImplementedError()
+
+    def financial_plan(self, symbol: str):
+        raise NotImplementedError()

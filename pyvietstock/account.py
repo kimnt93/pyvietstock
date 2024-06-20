@@ -17,8 +17,13 @@ def login(username=None, password=None):
             logging.info("Finding token...")
             login_headers = request.headers
             login_token = request.post_data.split("__RequestVerificationToken=")[1]
-            # Close the context once the token is found
-            context.close()
+            # Save headers and token to .cache/login.json
+            logging.info("Saving login headers and token to .cache/login.json")
+            with open('.cache/login.json', 'w') as f:
+                f.write(json.dumps({
+                    'headers': login_headers,
+                    'token': login_token
+                }))
 
     if os.path.exists('.cache/login.json'):
         logging.info("Loading login headers and token from .cache/login.json")
@@ -27,35 +32,40 @@ def login(username=None, password=None):
             login_headers = data['headers']
             login_token = data['token']
     else:
-        logging.info(f"Logging in: {HOME_PAGE_URL}")
         with sync_playwright() as p:
             browser = p.firefox.launch(headless=False)
-            context = browser.new_context()
-
-            # Enable request interception to capture network traffic
-            context.on("request", lambda request: handle_request(request))
-
-            page = context.new_page()
+            page = browser.new_page()
 
             try:
                 # Adjust navigation timeout and start navigation
-                page.goto(HOME_PAGE_URL, wait_until='domcontentloaded', timeout=10000)
+                logging.info(f"Logging in: {HOME_PAGE_URL}")
+                page.goto(HOME_PAGE_URL)
+
+                # Click the "Đăng nhập" button to show the login form
+                page.click('button#btn-request-call-login')
+                time.sleep(1)
+                # Fill in the email and password fields
+                page.fill('input#txtEmailLogin', username)
+                page.fill('input#txtPassword', password)
+
+                # Click the login button
+                page.click('button#btnLoginAccount')
+
                 # Wait for the token to be captured
+                time.sleep(2)
+                # Enable request interception to capture network traffic
+                page.on("request", lambda request: handle_request(request))
+                page.goto(HOME_PAGE_URL)
                 time.sleep(5)
             except Exception as e:
                 logging.error(f"Error during navigation: {e}")
             finally:
-                # Ensure browser is closed even if an error occurs
-                context.close()
+                # Ensure context and browser are closed even if an error occurs
                 browser.close()
-
-        # Save headers and token to .cache/login.json
-        logging.info("Saving login headers and token to .cache/login.json")
-        with open('.cache/login.json', 'w') as f:
-            f.write(json.dumps({
-                'headers': login_headers,
-                'token': login_token
-            }))
 
     # Return captured headers and token
     return login_headers, login_token
+
+# Example usage:
+# login_headers, login_token = login("your-email@example.com", "your-password")
+# print(login_headers, login_token)

@@ -269,3 +269,22 @@ class EventSameIndustry(CompanyEvent):
     place: str
     time_action: str
     from_date: str
+
+
+@dataclass
+class IncomeStatementData:
+    row_number: int
+    report_data_id: int
+    year_period: int
+    report_term_id: int
+    audit_opinion: str  # ý kiến kiểm toán -> Audit opinion
+    audit_firm: str  # công ty kiểm toán -> Audit firm
+    is_united: int
+    united_name: str
+    audit_status_id: int
+    audit_status_name: str
+    period_begin: int
+    period_end: int
+    base_period_begin: int
+    base_period_end: int
+    is_show_data_permission: bool

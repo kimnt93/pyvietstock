@@ -65,3 +65,10 @@ class TransferTypeID:
 class EventType:
     ALL = [1, 2, 5]
 
+
+@dataclass
+class IncomeStatementPeriod:
+    QUARTER = "QUY"
+    YEAR = "NAM"
+    DEFAULT = QUARTER
+
