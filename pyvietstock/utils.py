@@ -1,6 +1,4 @@
-import json
 from datetime import datetime
-from functools import lru_cache
 from typing import Union, Optional
 import re
 
@@ -32,3 +30,20 @@ def to_time_s(d, ns=1000) -> Optional[str]:
         return datetime.fromtimestamp(extract_timestamp(d, ns)).__str__()
     except (ValueError, TypeError):
         return None
+
+
+def flatten_nested_dict(nested_dict):
+    result = []
+
+    def flatten(element):
+        if isinstance(element, list):
+            for item in element:
+                flatten(item)
+        elif isinstance(element, dict):
+            for key in element:
+                flatten(element[key])
+        else:
+            result.append(element)
+
+    flatten(nested_dict)
+    return result

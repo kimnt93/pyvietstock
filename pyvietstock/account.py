@@ -33,7 +33,7 @@ def login(username=None, password=None):
             login_token = data['token']
     else:
         with sync_playwright() as p:
-            browser = p.firefox.launch(headless=False)
+            browser = p.firefox.launch(headless=True)
             page = browser.new_page()
 
             try:

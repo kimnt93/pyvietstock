@@ -2,14 +2,15 @@ import re
 import time
 from datetime import datetime, timedelta
 from functools import lru_cache
-from typing import AnyStr, Union, List
+from typing import AnyStr, Union, List, Dict
 import logging
 import requests
+from babel.messages.pofile import read_po
 
 from pyvietstock.account import login
 from pyvietstock.config import API_BASE_URL, FINANCE_BASE_URL, DEFAULT_API_HEADERS
 from pyvietstock.params import HistoricalResolution, DocumentType, Period, TransferTypeID, EventType, \
-    IncomeStatementPeriod
+    FinancialPeriod, FinancialReportType
 from pyvietstock.schema import (
     EventTransferData, HistoricalData, TradingInfo, MarketPrice, StockDealDetail,
     StatisticsData, CompanyRelation, Document, HeaderNews, BondRelated, NewsArticle, ChannelNewsArticle, CompanyEvent,
@@ -876,25 +877,10 @@ class VietStockFinance:
 
         return events if len(events) > 0 else None
 
-    @lru_cache(maxsize=2048)
-    def _get_income_norm(self, symbol):
-        url = f"{self.finance_base_url}/data/GetListReportNorm_KQKD_ByStockCode"
-        payload = {
-            "stockCode": symbol,
-            "__RequestVerificationToken": self._token
-        }
-        response = requests.post(url, data=payload, headers=self._headers)
-        if response.status_code == 200:
-            pattern = r'\d+\.'
-            data = response.json()['data']
-            return {
-                row['ReportNormId']: re.sub(pattern, '', row['ReportNormName']).strip() for row in data
-            }
-        else:
-            response.raise_for_status()
-            return dict()
+    def financial_plan(self, symbol):
+        raise NotImplementedError()
 
-    def income_statement(self, symbol: str, period: Union[IncomeStatementPeriod, AnyStr] = IncomeStatementPeriod.DEFAULT) -> Union[List[IncomeStatementData], None]:
+    def income_statement(self, symbol: str, period: Union[FinancialPeriod, AnyStr] = FinancialPeriod.DEFAULT) -> Union[List[IncomeStatementData], None]:
         """
         Get income statement data for a stock code.
         :param symbol: Stock code to fetch report data for.
@@ -918,7 +904,7 @@ class VietStockFinance:
         datas = list()
         if response.status_code == 200:
             data = response.json().get('data', [])
-
+            data = data[0]['data'] if data else []
             datas = [
                 IncomeStatementData(
                     row_number=item['RowNumber'],
@@ -948,12 +934,101 @@ class VietStockFinance:
 
     def cash_flow_statement(self, symbol: str):
         raise NotImplementedError()
-
-    def financial_summary(self, symbol: str):
-        raise NotImplementedError()
-
     def financial_ratios(self, symbol: str):
         raise NotImplementedError()
 
-    def financial_plan(self, symbol: str):
-        raise NotImplementedError()
+    @lru_cache(maxsize=2048)
+    def _get_report_norm(self, report_type: FinancialReportType, symbol=None):
+        if report_type == FinancialReportType.FINANCIAL_SUMMARY:
+            url = f"{self.finance_base_url}/data/GetListReportNorm_BCTT_ByStockCode"
+        elif report_type == FinancialReportType.BALANCE_SHEET:
+            url = f"{self.finance_base_url}/data/GetListReportNormByStockCode"
+        elif report_type == FinancialReportType.INCOME_STATEMENT:
+            url = f"{self.finance_base_url}/data/GetListReportNorm_KQKD_ByStockCode"
+        elif report_type == FinancialReportType.CASH_FLOW_STATEMENT:
+            url = f"{self.finance_base_url}/data/GetListReportNorm_LCTT_ByStockCode"
+        elif report_type == FinancialReportType.FINANCIAL_RATIOS:
+            url = f"{self.finance_base_url}/data/GetListReportNorm_CSTC_ByStockCode"
+        elif report_type == FinancialReportType.FINANCIAL_PLAN:
+            url = f"{self.finance_base_url}/data/GetListReportNorm_CTKH"
+        else:
+            raise ValueError(f"Invalid report type {report_type}")
+
+        payload = {
+            "__RequestVerificationToken": self._token
+        }
+        if symbol is not None:
+            payload['stockCode'] = symbol
+
+        response = requests.post(url, data=payload, headers=self._headers)
+        if response.status_code == 200:
+            pattern = r'\d+\.'
+            data = response.json()
+            if 'error' in data:
+                logging.error(f"Error fetching report period data: {data['error']}")
+                return None
+
+            data = data['data']
+            report_norms = list()
+            if isinstance(data, dict):
+                for _, values in data.items():
+                    report_norms.extend(values) if isinstance(values, list) else report_norms.append(values)
+
+            return {
+                row['ReportNormId']: re.sub(pattern, '', row['ReportNormName']).strip() for row in report_norms
+            }
+        else:
+            response.raise_for_status()
+            return dict()
+
+    @lru_cache(maxsize=2048)
+    def _get_report_period(
+        self,
+        report_type: FinancialReportType,
+        symbol: str,
+        period: FinancialPeriod = FinancialPeriod.DEFAULT,
+        financial_year: bool = False
+   ):
+        if report_type == FinancialReportType.FINANCIAL_SUMMARY:
+            url = f"{self.finance_base_url}/data/BCTT_GetListReportData"
+        elif report_type == FinancialReportType.BALANCE_SHEET:
+            url = f"{self.finance_base_url}/data/CDKT_GetListReportData"
+        elif report_type == FinancialReportType.INCOME_STATEMENT:
+            url = f"{self.finance_base_url}/data/KQKD_GetListReportData"
+        elif report_type == FinancialReportType.CASH_FLOW_STATEMENT:
+            url = f"{self.finance_base_url}/data/LCTT_GetListReportData_Quarter_VSTTinh"
+        elif report_type == FinancialReportType.FINANCIAL_RATIOS:
+            url = f"{self.finance_base_url}/data/CSTC_GetListTerms"
+        elif report_type == FinancialReportType.FINANCIAL_PLAN:
+            url = f"{self.finance_base_url}/data/CTKH_GetListYearPeriods"
+        else:
+            raise ValueError(f"Invalid report type {report_type}")
+
+        payload = {
+            "stockCode": symbol,
+            "UnitedId": -1,
+            "AuditedStatusId": -1,
+            "Unit": 1000000000,
+            "IsNamDuongLich": not financial_year,
+            "PeriodType": period,
+            "SortTimeType": "Time_ASC",
+            "__RequestVerificationToken": self._token
+        }
+        response = requests.post(url, data=payload, headers=self._headers)
+        if response.status_code == 200:
+            data = response.json()
+            if 'error' in data:
+                logging.error(f"Error fetching report period data: {data['error']}")
+                return None
+
+            data = data['data']
+
+            return [
+                {
+                    "year": item['YearPeriod'],
+                    "quarter": item.get('ReportTermID', 1) - 1,  # 0 if report type is yearly
+                } for item in data[-5:]  # Get the last 5 years/quarters
+            ]
+        else:
+            response.raise_for_status()
+            return dict()

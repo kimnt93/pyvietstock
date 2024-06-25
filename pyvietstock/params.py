@@ -1,15 +1,11 @@
 from dataclasses import dataclass
+from enum import Enum
 
 
 @dataclass
 class ReportTermType:
     BY_YEAR = 1
     BY_QUARTER = 2
-
-
-@dataclass
-class ReportType:
-    BCTQ = "BCTQ"
 
 
 @dataclass
@@ -67,8 +63,17 @@ class EventType:
 
 
 @dataclass
-class IncomeStatementPeriod:
+class FinancialPeriod:
     QUARTER = "QUY"
     YEAR = "NAM"
     DEFAULT = QUARTER
 
+
+@dataclass
+class FinancialReportType:
+    FINANCIAL_SUMMARY = 0
+    INCOME_STATEMENT = 1
+    BALANCE_SHEET = 2
+    CASH_FLOW_STATEMENT = 3
+    FINANCIAL_RATIOS = 4
+    FINANCIAL_PLAN = 5

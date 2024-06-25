@@ -6,7 +6,6 @@ setup(
     packages=find_packages(),
     install_requires=[
         'playwright==1.44.0',
-        're==2.2.1'
     ],
     author='Kim T. Nguyen',
     author_email='kimnt93@gmail.com',
